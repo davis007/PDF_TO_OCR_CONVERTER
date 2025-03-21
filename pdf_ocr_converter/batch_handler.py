@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
 from .pdf_processor import PDFProcessor
 from .region_selector import RegionSelector
+from .ocr_engine import OCREngine
 
 class BatchProcessor:
     """
@@ -15,7 +16,8 @@ class BatchProcessor:
     def __init__(self, input_dir, output_dir=None, language='jpn',
                  exclude_config=None, exclude_top=False, top_percentage=10,
                  exclude_bottom=False, bottom_percentage=5,
-                 custom_regions=None, overwrite=False, max_workers=4):
+                 custom_regions=None, overwrite=False, max_workers=4,
+                 orientation=OCREngine.AUTO):
         self.input_dir = input_dir
         self.output_dir = output_dir if output_dir else input_dir
         self.language = language
@@ -27,6 +29,7 @@ class BatchProcessor:
         self.custom_regions = custom_regions
         self.overwrite = overwrite
         self.max_workers = max_workers
+        self.orientation = orientation
 
         # 出力ディレクトリが存在しない場合は作成（上書きでない場合）
         if not overwrite and output_dir and not os.path.exists(output_dir):
@@ -66,7 +69,7 @@ class BatchProcessor:
 
             # PDFを処理
             processor = PDFProcessor(pdf_path, output_path, self.language)
-            processor.process(exclude_regions=region_selector)
+            processor.process(exclude_regions=region_selector, orientation=self.orientation)
 
             return True, pdf_path
         except Exception as e:
@@ -82,6 +85,7 @@ class BatchProcessor:
             return
 
         print(f"{total_files}個のPDFファイルを処理します...")
+        print(f"テキスト向き設定: {'自動検出' if self.orientation == OCREngine.AUTO else '横書き' if self.orientation == OCREngine.HORIZONTAL else '縦書き'}")
 
         # 進行状況表示用のtqdmを使用
         with tqdm(total=total_files, desc="処理中") as pbar:

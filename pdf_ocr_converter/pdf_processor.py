@@ -17,13 +17,14 @@ class PDFProcessor:
         self.language = language
         self.ocr_engine = OCREngine(language)
 
-    def process(self, exclude_regions=None, dpi=300):
+    def process(self, exclude_regions=None, dpi=300, orientation=OCREngine.AUTO):
         """
         PDFを処理し、検索可能なテキストレイヤーを追加する
 
         Args:
             exclude_regions: RegionSelector オブジェクト
             dpi: 画像変換時の解像度
+            orientation: テキストの向き ('auto', 'horizontal', 'vertical')
         """
         # PDFを画像に変換
         pages = convert_from_path(self.input_pdf, dpi=dpi)
@@ -43,11 +44,16 @@ class PDFProcessor:
                     page_image.width, page_image.height
                 )
 
-            # OCRでテキストと位置情報を抽出
-            ocr_data = self.ocr_engine.process_image(page_image, page_regions)
+            # OCRでテキストと位置情報を抽出（向きも検出）
+            ocr_data, detected_orientation = self.ocr_engine.process_image(
+                page_image, page_regions, orientation
+            )
 
             # テキストレイヤーを追加
-            self._add_text_layer(page, ocr_data, dpi)
+            self._add_text_layer(page, ocr_data, dpi, detected_orientation)
+
+            # 検出された向きを表示
+            print(f"ページ {page_num+1}: {'縦書き' if detected_orientation == OCREngine.VERTICAL else '横書き'} テキスト検出")
 
         # PDFを保存
         if self.input_pdf == self.output_pdf:
@@ -59,7 +65,7 @@ class PDFProcessor:
 
         doc.close()
 
-    def _add_text_layer(self, page, ocr_data, dpi):
+    def _add_text_layer(self, page, ocr_data, dpi, orientation):
         """
         ページにテキストレイヤーを追加する
 
@@ -67,6 +73,7 @@ class PDFProcessor:
             page: fitz.Page オブジェクト
             ocr_data: OCR結果（pytesseract.image_to_data の出力形式）
             dpi: 画像変換時の解像度
+            orientation: 検出されたテキストの向き ('horizontal' または 'vertical')
         """
         # OCRデータから有効なテキストのみを抽出
         for i in range(len(ocr_data['text'])):
@@ -84,9 +91,29 @@ class PDFProcessor:
                 x, y, w, h = x*scale, y*scale, w*scale, h*scale
 
                 # テキストを透明で配置（検索可能だが表示されない）
-                page.insert_text(
-                    (x, y),
-                    ocr_data['text'][i],
-                    fontsize=h,
-                    color=(0, 0, 0, 0)  # 透明
-                )
+                if orientation == OCREngine.HORIZONTAL:
+                    # 横書きテキストの場合
+                    page.insert_text(
+                        (x, y),
+                        ocr_data['text'][i],
+                        fontsize=h,
+                        color=(0, 0, 0, 0)  # 透明
+                    )
+                else:
+                    # 縦書きテキストの場合
+                    # 縦書きテキストの場合は、テキストを90度回転させて配置
+                    # PyMuPDFでは直接縦書きテキストを配置する方法が限られているため、
+                    # 文字ごとに配置する方法を採用
+                    text = ocr_data['text'][i]
+                    char_height = h / len(text) if len(text) > 0 else h
+
+                    for j, char in enumerate(text):
+                        if char.strip():  # 空白文字はスキップ
+                            # 縦書きの場合、文字を上から下に配置
+                            char_y = y + j * char_height
+                            page.insert_text(
+                                (x, char_y),
+                                char,
+                                fontsize=w,  # 縦書きの場合は幅をフォントサイズとして使用
+                                color=(0, 0, 0, 0)  # 透明
+                            )

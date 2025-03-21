@@ -8,6 +8,7 @@ from .pdf_processor import PDFProcessor
 from .batch_handler import BatchProcessor
 from .region_selector import RegionSelector
 from .config import ExcludeConfig
+from .ocr_engine import OCREngine
 
 def main():
     parser = argparse.ArgumentParser(description='画像PDFからOCRでテキストを抽出し検索可能なPDFを生成')
@@ -35,12 +36,25 @@ def main():
                         help='除外する領域をピクセル座標で指定 (複数指定可)')
     parser.add_argument('--config', help='除外領域設定ファイルのパス')
 
+    # テキストの向き設定
+    parser.add_argument('--orientation', choices=['auto', 'horizontal', 'vertical'],
+                        default='auto', help='テキストの向き（auto: 自動検出, horizontal: 横書き, vertical: 縦書き）')
+
     # その他のオプション
     parser.add_argument('-l', '--language', default='jpn', help='OCRの言語設定（デフォルト: jpn）')
     parser.add_argument('-w', '--workers', type=int, default=4, help='並列処理のワーカー数（デフォルト: 4）')
     parser.add_argument('--dpi', type=int, default=300, help='画像変換時の解像度（デフォルト: 300）')
 
     args = parser.parse_args()
+
+    # テキストの向きを設定
+    orientation = args.orientation
+    if orientation == 'horizontal':
+        orientation = OCREngine.HORIZONTAL
+    elif orientation == 'vertical':
+        orientation = OCREngine.VERTICAL
+    else:
+        orientation = OCREngine.AUTO
 
     # 設定ファイルの読み込み
     exclude_config = None
@@ -73,7 +87,7 @@ def main():
 
         # PDFを処理
         processor = PDFProcessor(args.file, output, args.language)
-        processor.process(exclude_regions=region_selector, dpi=args.dpi)
+        processor.process(exclude_regions=region_selector, dpi=args.dpi, orientation=orientation)
 
         print(f"処理完了: {args.file} -> {output}")
     else:
@@ -90,7 +104,8 @@ def main():
             bottom_percentage=args.bottom_percentage,
             custom_regions=args.exclude_region,
             overwrite=args.overwrite,
-            max_workers=args.workers
+            max_workers=args.workers,
+            orientation=orientation
         )
         batch_processor.process_all()
 

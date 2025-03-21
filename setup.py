@@ -14,6 +14,7 @@ setup(
         "pytesseract>=0.3.8",
         "PyMuPDF>=1.19.0",
         "tqdm>=4.62.0",
+        "numpy>=1.20.0",
     ],
     entry_points={
         "console_scripts": [
@@ -24,6 +25,6 @@ setup(
     author="PDF OCR Converter Team",
     author_email="example@example.com",
     description="画像PDFからOCRでテキストを抽出し検索可能なPDFを生成するツール",
-    keywords="pdf, ocr, text extraction",
+    keywords="pdf, ocr, text extraction, vertical text",
     python_requires=">=3.6",
 )
